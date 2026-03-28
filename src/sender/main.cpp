@@ -1,19 +1,19 @@
 #include <esp_now.h>
 #include <WiFi.h>
 
-#define KILL_PIN         21    // GPIO21 = D7 on XIAO ESP32C3 silkscreen
+#define KILL_PIN         10    // GPIO21 = D7 on XIAO ESP32C3 silkscreen
 #define KILL_BYTE        0xAA
 #define BEACON_INTERVAL  100   // ms
 
 bool killed = false;
 unsigned long lastBeacon = 0;
-uint8_t groundMAC[] = {0x58, 0x8C, 0x81, 0xAE, 0xBE, 0x64}; // Unit B MAC
+uint8_t groundMAC[] = {0x58, 0x8C, 0x81, 0xAE, 0xBE, 0x64}; // Unit B (ground) MAC
 
-void onReceive(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
+void onReceive(const uint8_t *mac, const uint8_t *data, int len) {
   if (data[0] == KILL_BYTE && !killed) {
     killed = true;
-    digitalWrite(KILL_PIN, HIGH); // MOSFET gate HIGH = motor power cut
-    // LATCHED: nothing sets KILL_PIN LOW again except power cycle
+    digitalWrite(KILL_PIN, LOW); // MOSFET gate LOW = motor power cut
+    // LATCHED: nothing sets KILL_PIN HIGH again except power cycle
   }
 }
 
@@ -22,7 +22,7 @@ void setup() {
   WiFi.mode(WIFI_STA);
 
   pinMode(KILL_PIN, OUTPUT);
-  digitalWrite(KILL_PIN, LOW); // MOSFET off = motor runs at startup
+  digitalWrite(KILL_PIN, HIGH); // MOSFET on = motor runs at startup
 
   esp_now_init();
 

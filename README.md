@@ -106,3 +106,6 @@ The ESP32-C3 only supports BLE — no Classic Bluetooth. ESP-NOW is the better c
 | MAC Address | See `.env` → `ESP32_MAC` |
 | Baud Rate | 115200 |
 | Port | COM5 |
+Sender, unit A, on drone, C:\Users\Wooda\.platformio\penv\Scripts\platformio.exe run -e sender -t upload
+
+Receiver, unit B, on person, run in terminal to upload,C:\Users\Wooda\.platformio\penv\Scripts\platformio.exe run -e receiver -t upload
