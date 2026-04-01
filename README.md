@@ -1,6 +1,8 @@
 # Drone Project
 
-## ESP32-C3 Setup & ESP-NOW Communication
+## ESP32-C3 Proximity Kill-Switch
+
+Two XIAO ESP32C3 boards communicate over ESP-NOW. The **receiver** (Unit B, carried by the person) monitors signal strength from the drone. When the drone gets too close, it sends a kill command. The **sender** (Unit A, on the drone) beacons continuously and cuts motor power when it receives that command.
 
 ### Hardware
 - Board: Seeed Studio XIAO ESP32C3
@@ -13,16 +15,13 @@
 ```
 drone project/
 ├── src/
-│   ├── main.cpp            # MAC address retrieval utility
-│   ├── receiver/main.cpp   # ESP-NOW receiver firmware
-│   └── sender/main.cpp     # ESP-NOW sender firmware
+│   ├── receiver/main.cpp   # Unit B — worn by person, monitors RSSI, sends kill
+│   └── sender/main.cpp     # Unit A — on drone, beacons and cuts motors on kill
 ├── platformio.ini          # PlatformIO build config (receiver + sender envs)
-├── .env                    # Device-specific values (not committed)
 └── .gitignore
 ```
 
 ### platformio.ini Configuration
-Two environments are defined — one per role. USB CDC flags are required for `Serial` output over USB on the ESP32-C3.
 
 ```ini
 [env:receiver]
@@ -50,44 +49,56 @@ build_src_filter = -<*> +<sender/>
 
 ---
 
-## Step 1 — Get Receiver MAC Address
+## Unit A — Sender (on drone)
 
-Flash `src/main.cpp` to the receiver board to retrieve its MAC address.
+**MAC:** `58:8C:81:AB:2E:C0`
 
-```cpp
-#include <WiFi.h>
+**Behaviour:**
+- On boot: sets GPIO10 `HIGH` (MOSFET on, motor runs)
+- Every 100 ms: sends a `0x01` beacon to the receiver via ESP-NOW
+- On receiving `0xAA` (kill byte): sets GPIO10 `LOW` (MOSFET off, motor cut), latched — only clears on power cycle
 
-void setup() {
-  Serial.begin(115200);
-  delay(3000);
-  WiFi.mode(WIFI_STA);
-  Serial.println(WiFi.macAddress());
-}
-
-void loop() {}
+**Upload command:**
+```
+C:\Users\Wooda\.platformio\penv\Scripts\platformio.exe run -e sender -t upload
 ```
 
-**Steps:**
-1. Upload firmware: `Ctrl+Alt+U`
-2. Open serial monitor: `Ctrl+Alt+S`
-3. Press **RESET** — MAC address prints after ~3 seconds
-4. Save the MAC to `.env` as `ESP32_MAC`
+---
+
+## Unit B — Receiver (carried by person)
+
+**MAC:** `58:8C:81:AE:BE:64`
+
+**Behaviour:**
+- Enables WiFi promiscuous mode to capture raw RSSI from every packet (more reliable than the ESP-NOW callback RSSI)
+- On each beacon received: adds RSSI to a rolling window of 10 samples, computes average
+- Estimates distance using the log-distance path loss model: `d = 10 ^ ((RSSI_1M − avgRSSI) / (10 × 2.0))`
+- If `avgRSSI > -53 dBm` (drone too close): sends `0xAA` kill byte to drone 3 times, latches `killSent`
+- Ignores packets with RSSI below `-80 dBm` (drone out of range, >~25 m)
+- Prints status to serial every 250 ms
+
+**Serial output examples:**
+```
+STATUS: Drone not detected
+STATUS: Connected | RSSI: -61 dBm | Distance: ~3.5 m
+STATUS: KILL SENT — motor cut
+```
+
+**Upload command:**
+```
+C:\Users\Wooda\.platformio\penv\Scripts\platformio.exe run -e receiver -t upload
+```
 
 ---
 
-## Step 2 — Flash Receiver
+## Calibration
 
-Select the `receiver` environment in the PlatformIO toolbar, then upload to the receiving board. It listens for incoming ESP-NOW messages and prints them to serial.
-
----
-
-## Step 3 — Flash Sender
-
-Select the `sender` environment, update `receiverMAC[]` in `src/sender/main.cpp` with the receiver's MAC, then upload to the sending board. It transmits `"hello"` every second.
-
-**Expected output:**
-- Receiver serial: `Received: hello`
-- Sender serial: `Delivered`
+| Parameter | Define | Default | Notes |
+|-----------|--------|---------|-------|
+| Kill threshold | `RSSI_CUTOFF` | `-53` | RSSI above this triggers kill. Measure at desired kill distance. |
+| Reference RSSI | `RSSI_1M` | `-40` | Measured RSSI at exactly 1 m. Board-specific. |
+| Max tracking range | `MAX_RANGE_RSSI` | `-80` | Packets weaker than this are ignored (~25 m+). |
+| Path loss exponent | `PATH_LOSS_EXP` | `2.0` | 2.0 = free space. Increase for obstructed environments. |
 
 ---
 
@@ -101,11 +112,10 @@ The ESP32-C3 only supports BLE — no Classic Bluetooth. ESP-NOW is the better c
 ---
 
 ## Device Info
+
 | Key | Value |
 |-----|-------|
-| MAC Address | See `.env` → `ESP32_MAC` |
 | Baud Rate | 115200 |
 | Port | COM5 |
-Sender, unit A, on drone, C:\Users\Wooda\.platformio\penv\Scripts\platformio.exe run -e sender -t upload
-
-Receiver, unit B, on person, run in terminal to upload,C:\Users\Wooda\.platformio\penv\Scripts\platformio.exe run -e receiver -t upload
+| Unit A MAC (drone) | `58:8C:81:AB:2E:C0` |
+| Unit B MAC (person) | `58:8C:81:AE:BE:64` |
