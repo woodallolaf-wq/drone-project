@@ -67,7 +67,7 @@ C:\Users\Wooda\.platformio\penv\Scripts\platformio.exe run -e sender -t upload
 
 ## Unit B — Receiver (carried by person)
 
-**MAC:** `58:8C:81:AE:BE:64`
+**MAC:** `58:8C:81:A8:66:3C`
 
 **Behaviour:**
 - Enables WiFi promiscuous mode to capture raw RSSI from every packet (more reliable than the ESP-NOW callback RSSI)
@@ -118,4 +118,9 @@ The ESP32-C3 only supports BLE — no Classic Bluetooth. ESP-NOW is the better c
 | Baud Rate | 115200 |
 | Port | COM5 |
 | Unit A MAC (drone) | `58:8C:81:AB:2E:C0` |
-| Unit B MAC (person) | `58:8C:81:AE:BE:64` |
+| Unit B MAC (person) | `58:8C:81:A8:66:3C` |
+the coms change all the time
+reciever C:\Users\Wooda\.platformio\penv\Scripts\platformio.exe run -e receiver -t upload --upload-port COM5
+
+sender
+C:\Users\Wooda\.platformio\penv\Scripts\platformio.exe run -e sender -t upload --upload-port COM8
