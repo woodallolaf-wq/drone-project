@@ -3,7 +3,7 @@
 #include "esp_wifi.h"
 #include <math.h>
 
-#define RSSI_CUTOFF      -25   //-53 outdoor CALIBRATE THIS — see Section 4 of spec
+#define RSSI_CUTOFF      -35   //-53 outdoor CALIBRATE THIS — see Section 4 of spec
 #define ROLLING_WINDOW    10
 #define KILL_BYTE        0xAA
 #define MAX_RANGE_RSSI   -80   // ignore if drone beyond 25m
@@ -18,7 +18,7 @@
 #define LED_BLUE  10  // D10
 
 // Button pin
-#define BUTTON_PIN 5  // D3 — active LOW with internal pull-up
+#define BUTTON_PIN 5  // 5 is d3 it is retarded
 
 // System arm state
 volatile bool systemArmed = false;  // false = disarmed, true = armed
@@ -74,7 +74,9 @@ void onReceive(const uint8_t *mac, const uint8_t *data, int len) {
 
   estimatedDistance = pow(10.0f, (RSSI_1M - avgRSSI) / (10.0f * PATH_LOSS_EXP));
 
-  if (avgRSSI > RSSI_CUTOFF) {
+  // Dual trigger: avg catches slow approach; instant catches fast approach
+  // where rolling average lags behind actual signal strength
+  if (avgRSSI > RSSI_CUTOFF || rssi > RSSI_CUTOFF) {
     uint8_t killMsg = KILL_BYTE;
     for (int i = 0; i < 3; i++) {
       esp_now_send(droneMAC, &killMsg, 1);
@@ -133,6 +135,7 @@ void loop() {
     if (buttonReading != buttonState) {      // stable state changed
       buttonState = buttonReading;
       if (buttonState == LOW) {              // falling edge = button pressed
+        Serial.println("BUTTON: pressed");
         systemArmed = !systemArmed;
         // Reset state on every toggle so re-arm after kill works
         // NOTE: Unit A kill pin is hardware-latched — needs power cycle to restore motors
